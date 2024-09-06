@@ -595,6 +595,23 @@ func withinRadius(members []ssElem, longitude, latitude, radius float64) []geoDi
 	return matches
 }
 
+func withinBox(members []ssElem, longitude, latitude, widthM, heightM float64) []geoDistance {
+	matches := []geoDistance{}
+	for _, el := range members {
+		elLo, elLat := fromGeohash(uint64(el.score))
+		if distanceInMeter, ok := geohashGetDistanceIfInRectangle(widthM, heightM, longitude, latitude, elLo, elLat); ok {
+			matches = append(matches, geoDistance{
+				Name:      el.member,
+				Score:     el.score,
+				Distance:  distanceInMeter,
+				Longitude: elLo,
+				Latitude:  elLat,
+			})
+		}
+	}
+	return matches
+}
+
 func parseUnit(u string) float64 {
 	switch strings.ToLower(u) {
 	case "m":
@@ -741,10 +758,18 @@ func (m *Miniredis) cmdGeosearch(c *server.Peer, cmd string, args []string) {
 		if !opts.withFromLonLat {
 			panic("wip")
 		}
-		if !opts.withByRadius {
+		if !opts.withByRadius && !opts.withByBox {
 			panic("wip")
 		}
-		matches := withinRadius(members, opts.fromLonLat.a, opts.fromLonLat.b, opts.byRadius)
+
+		var matches []geoDistance
+
+		switch {
+		case opts.withByRadius:
+			matches = withinRadius(members, opts.fromLonLat.a, opts.fromLonLat.b, opts.byRadius)
+		case opts.withByBox:
+			matches = withinBox(members, opts.fromLonLat.a, opts.fromLonLat.b, opts.byBox.a, opts.byBox.b)
+		}
 
 		/*
 			// deal with ASC/DESC
